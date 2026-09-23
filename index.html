@@ -54,7 +54,7 @@
 <div class="dashboard">
     <div class="header">
         <h1>Monitor SPC | Diagnóstico Predictivo</h1>
-        <p>Análisis de reglas con límites fijos</p>
+        <p>Análisis de reglas de Western Electric con límites fijos</p>
     </div>
 
     <div class="grid-layout">
@@ -63,8 +63,8 @@
             <div class="card" style="margin-bottom: 20px;">
                 <h3 class="card-title">1. Calibración (Histórico)</h3>
                 <div style="display: flex; gap: 10px;">
-                    <div style="flex: 1;"><label style="font-size: 12px; color: var(--text-muted);">Media (μ)</label><input type="number" id="mu-historico" step="0.01" value="5.00"></div>
-                    <div style="flex: 1;"><label style="font-size: 12px; color: var(--text-muted);">Desv (σ)</label><input type="number" id="sigma-historico" step="0.01" value="0.141"></div>
+                    <div style="flex: 1;"><label style="font-size: 12px; color: var(--text-muted);">Media (μ)</label><input type="number" id="mu-historico" step="0.01" value="5.00" onchange="evaluarProceso()"></div>
+                    <div style="flex: 1;"><label style="font-size: 12px; color: var(--text-muted);">Desv (σ)</label><input type="number" id="sigma-historico" step="0.01" value="0.141" onchange="evaluarProceso()"></div>
                 </div>
             </div>
 
@@ -83,7 +83,7 @@
                 
                 <button onclick="evaluarProceso()">Analizar Proceso</button>
                 <div style="border-top: 1px solid var(--border); margin-top: 15px; padding-top: 15px;">
-                    <p style="font-size: 12px; color: var(--text-muted); margin-top: 0;">Simuladores automáticos:</p>
+                    <p style="font-size: 12px; color: var(--text-muted); margin-top: 0;">Simuladores automáticos adaptativos:</p>
                     <div style="display: flex; gap: 5px; flex-wrap: wrap;">
                         <button class="btn-outline" style="flex: 1; padding: 5px;" onclick="cargarDatos('sano')">Sano</button>
                         <button class="btn-outline" style="flex: 1; padding: 5px;" onclick="cargarDatos('subito')">Súbito</button>
@@ -104,7 +104,6 @@
 
             <div id="panel-alerta" class="alert-box">
                 <div id="titulo-alerta" class="alert-title"></div>
-                <!-- Variable de JS corregida para que no choque aquí -->
                 <p id="desc-alerta" class="alert-desc"></p>
                 <ul id="lista-causas" class="diagnostic-list"></ul>
             </div>
@@ -119,18 +118,49 @@
 <script>
     let miGrafica;
 
-    const perfiles = {
-        'sano': [4.9, 5.1, 5.0, 4.8, 5.2, 5.0, 4.9, 5.1],
-        'subito': [4.9, 5.1, 5.0, 4.8, 7.5, 5.0, 4.9, 5.1],
-        'racha': [5.1, 5.2, 5.1, 5.3, 5.2, 5.1, 5.2, 4.8],
-        'tendencia': [4.8, 4.9, 5.0, 5.1, 5.2, 5.3, 5.4, 5.0]
-    };
-
+    // SIMULADORES DINÁMICOS: Se adaptan a cualquier Media (μ) y Desviación (σ) que escribas arriba
     function cargarDatos(tipo) {
-        const datos = perfiles[tipo];
-        for(let i=1; i<=8; i++) { 
-            document.getElementById('v' + i).value = datos[i-1]; 
+        const mu = parseFloat(document.getElementById('mu-historico').value.replace(',', '.')) || 5.00;
+        const sigma = parseFloat(document.getElementById('sigma-historico').value.replace(',', '.')) || 0.141;
+        
+        let datos = [];
+
+        if (tipo === 'sano') {
+            // Valores pequeños alrededor de la media
+            datos = [
+                mu - (sigma * 0.5), mu + (sigma * 0.8), mu, 
+                mu - (sigma * 1.2), mu + (sigma * 1.1), mu - (sigma * 0.2), 
+                mu + (sigma * 0.3), mu - (sigma * 0.4)
+            ];
+        } 
+        else if (tipo === 'subito') {
+            // Todos sanos, pero el quinto punto rebasa fuertemente el LCS (> mu + 3.5*sigma)
+            datos = [
+                mu, mu + (sigma * 0.5), mu - (sigma * 0.5), mu, 
+                mu + (sigma * 3.8), mu, mu - (sigma * 0.2), mu + (sigma * 0.1)
+            ];
+        } 
+        else if (tipo === 'racha') {
+            // 7 puntos seguidos por encima de la media
+            datos = [
+                mu + (sigma * 0.8), mu + (sigma * 1.2), mu + (sigma * 0.9), 
+                mu + (sigma * 1.5), mu + (sigma * 1.1), mu + (sigma * 1.4), 
+                mu + (sigma * 1.0), mu - (sigma * 1.0)
+            ];
+        } 
+        else if (tipo === 'tendencia') {
+            // 7 puntos subiendo en forma de escalera constante
+            datos = [
+                mu - (sigma * 1.5), mu - (sigma * 1.0), mu - (sigma * 0.5), 
+                mu, mu + (sigma * 0.5), mu + (sigma * 1.0), mu + (sigma * 1.5), mu 
+            ];
         }
+
+        // Rellenar las cajas con los valores adaptados redondeados a 2 decimales
+        for(let i=1; i<=8; i++) { 
+            document.getElementById('v' + i).value = datos[i-1].toFixed(2); 
+        }
+        
         evaluarProceso();
     }
 
@@ -155,7 +185,7 @@
 
         let errSubito = false, errRacha = false, errTendencia = false;
         let cUp = 0, cDown = 0; 
-        let asc = 0, desc = 0; // "desc" es solo el contador descendente
+        let asc = 0, desc = 0; 
 
         for (let i = 0; i < valores.length; i++) {
             if (valores[i] > lcs || valores[i] < lci) errSubito = true;
@@ -175,7 +205,6 @@
 
         const panel = document.getElementById('panel-alerta');
         const titulo = document.getElementById('titulo-alerta');
-        // AQUI ESTABA EL ERROR: Cambié "desc" por "descripcionAlerta"
         const descripcionAlerta = document.getElementById('desc-alerta'); 
         const lista = document.getElementById('lista-causas');
         
