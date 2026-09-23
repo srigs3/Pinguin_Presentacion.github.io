@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor SPC | Industrial Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        :root {
+            --bg-page: #121212;
+            --bg-card: #1e1e1e;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --border: #333333;
+            --primary: #bb86fc;
+            --primary-hover: #9965f4;
+            --success: #03dac6;
+            --danger: #cf6679;
+            --warning: #f2a900;
+        }
+
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-page); color: var(--text-main); margin: 0; padding: 20px; }
+        .dashboard { max-width: 1100px; margin: 0 auto; display: grid; gap: 20px; }
+        .header { text-align: center; margin-bottom: 10px; }
+        .header h1 { margin: 0; color: var(--primary); font-size: 28px; }
+        .header p { margin: 5px 0 0 0; color: var(--text-muted); font-size: 16px; }
+        .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5); }
+        .card-title { margin-top: 0; margin-bottom: 15px; font-size: 18px; color: var(--primary); border-left: 4px solid var(--primary); padding-left: 10px; }
+        .grid-layout { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+        .inputs-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px; }
+        
+        input[type="number"] { width: 100%; box-sizing: border-box; padding: 10px 4px; font-size: 15px; text-align: center; border: 1px solid var(--border); border-radius: 4px; background-color: #2c2c2c; color: var(--text-main); font-weight: bold; }
+        input[type="number"]:focus { outline: none; border-color: var(--primary); }
+        
+        button { width: 100%; background-color: var(--primary); color: #000; border: none; padding: 12px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; margin-bottom: 10px; }
+        button:hover { background-color: var(--primary-hover); }
+        
+        .btn-outline { background-color: transparent; color: var(--primary); border: 1px solid var(--primary); }
+        .btn-outline:hover { background-color: rgba(187, 134, 252, 0.1); }
+        
+        .metrics-bar { display: flex; justify-content: space-around; background: #2c2c2c; padding: 10px; border-radius: 6px; border: 1px solid var(--border); font-weight: bold; font-size: 15px; margin-bottom: 15px; }
+        .chart-container { position: relative; height: 350px; width: 100%; }
+        .alert-box { padding: 15px; border-radius: 6px; margin-bottom: 15px; display: none; font-size: 15px; border-left: 5px solid; }
+        .alert-title { font-weight: bold; font-size: 16px; margin-bottom: 5px; }
+        .alert-desc { margin: 0 0 10px 0; color: #ddd; }
+        .diagnostic-list { margin: 0; padding-left: 20px; font-size: 14px; }
+        .diagnostic-list li { margin-bottom: 4px; }
+
+        @media (max-width: 768px) { .grid-layout { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<div class="dashboard">
+    <div class="header">
+        <h1>Monitor SPC | Diagnóstico Predictivo</h1>
+        <p>Análisis de reglas de Western Electric con límites fijos</p>
+    </div>
+
+    <div class="grid-layout">
+        <!-- Panel Izquierdo -->
+        <div>
+            <div class="card" style="margin-bottom: 20px;">
+                <h3 class="card-title">1. Calibración (Histórico)</h3>
+                <div style="display: flex; gap: 10px;">
+                    <div style="flex: 1;"><label style="font-size: 12px; color: var(--text-muted);">Media (μ)</label><input type="number" id="mu-historico" step="0.01" value="5.00"></div>
+                    <div style="flex: 1;"><label style="font-size: 12px; color: var(--text-muted);">Desv (σ)</label><input type="number" id="sigma-historico" step="0.01" value="0.141"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 class="card-title">2. Lecturas (n=8)</h3>
+                <div class="inputs-grid" id="cajas-datos">
+                    <input type="number" id="v1" step="0.01" value="5.00" title="Lectura 1">
+                    <input type="number" id="v2" step="0.01" value="5.00" title="Lectura 2">
+                    <input type="number" id="v3" step="0.01" value="5.00" title="Lectura 3">
+                    <input type="number" id="v4" step="0.01" value="5.00" title="Lectura 4">
+                    <input type="number" id="v5" step="0.01" value="5.00" title="Lectura 5">
+                    <input type="number" id="v6" step="0.01" value="5.00" title="Lectura 6">
+                    <input type="number" id="v7" step="0.01" value="5.00" title="Lectura 7">
+                    <input type="number" id="v8" step="0.01" value="5.00" title="Lectura 8">
+                </div>
+                
+                <button onclick="evaluarProceso()">Analizar Proceso</button>
+                <div style="border-top: 1px solid var(--border); margin-top: 15px; padding-top: 15px;">
+                    <p style="font-size: 12px; color: var(--text-muted); margin-top: 0;">Simuladores automáticos:</p>
+                    <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                        <button class="btn-outline" style="flex: 1; padding: 5px;" onclick="cargarDatos('sano')">Sano</button>
+                        <button class="btn-outline" style="flex: 1; padding: 5px;" onclick="cargarDatos('subito')">Súbito</button>
+                        <button class="btn-outline" style="flex: 1; padding: 5px;" onclick="cargarDatos('racha')">Racha</button>
+                        <button class="btn-outline" style="flex: 1; padding: 5px;" onclick="cargarDatos('tendencia')">Tendencia</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel Derecho -->
+        <div class="card">
+            <div class="metrics-bar">
+                <span id="lbl-lcs" style="color: var(--danger);">LCS: --</span>
+                <span id="lbl-lc" style="color: var(--success);">LC: --</span>
+                <span id="lbl-lci" style="color: var(--danger);">LCI: --</span>
+            </div>
+
+            <div id="panel-alerta" class="alert-box">
+                <div id="titulo-alerta" class="alert-title"></div>
+                <!-- Variable de JS corregida para que no choque aquí -->
+                <p id="desc-alerta" class="alert-desc"></p>
+                <ul id="lista-causas" class="diagnostic-list"></ul>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="graficaEnVivo"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let miGrafica;
+
+    const perfiles = {
+        'sano': [4.9, 5.1, 5.0, 4.8, 5.2, 5.0, 4.9, 5.1],
+        'subito': [4.9, 5.1, 5.0, 4.8, 7.5, 5.0, 4.9, 5.1],
+        'racha': [5.1, 5.2, 5.1, 5.3, 5.2, 5.1, 5.2, 4.8],
+        'tendencia': [4.8, 4.9, 5.0, 5.1, 5.2, 5.3, 5.4, 5.0]
+    };
+
+    function cargarDatos(tipo) {
+        const datos = perfiles[tipo];
+        for(let i=1; i<=8; i++) { 
+            document.getElementById('v' + i).value = datos[i-1]; 
+        }
+        evaluarProceso();
+    }
+
+    function evaluarProceso() {
+        const muInput = document.getElementById('mu-historico').value.replace(',', '.');
+        const sigmaInput = document.getElementById('sigma-historico').value.replace(',', '.');
+        
+        const mu = parseFloat(muInput) || 0;
+        const sigma = parseFloat(sigmaInput) || 0;
+        const lcs = mu + (3 * sigma);
+        const lci = mu - (3 * sigma);
+
+        document.getElementById('lbl-lcs').innerText = 'LCS: ' + lcs.toFixed(3);
+        document.getElementById('lbl-lc').innerText = 'LC: ' + mu.toFixed(2);
+        document.getElementById('lbl-lci').innerText = 'LCI: ' + lci.toFixed(3);
+
+        let valores = [];
+        for(let i=1; i<=8; i++) { 
+            let valInput = document.getElementById('v' + i).value.replace(',', '.');
+            valores.push(parseFloat(valInput) || 0); 
+        }
+
+        let errSubito = false, errRacha = false, errTendencia = false;
+        let cUp = 0, cDown = 0; 
+        let asc = 0, desc = 0; // "desc" es solo el contador descendente
+
+        for (let i = 0; i < valores.length; i++) {
+            if (valores[i] > lcs || valores[i] < lci) errSubito = true;
+
+            if (valores[i] > mu) { cUp++; cDown = 0; }
+            else if (valores[i] < mu) { cDown++; cUp = 0; }
+            else { cUp = 0; cDown = 0; }
+            if (cUp >= 7 || cDown >= 7) errRacha = true;
+
+            if (i > 0) {
+                if (valores[i] > valores[i-1]) { asc++; desc = 0; }
+                else if (valores[i] < valores[i-1]) { desc++; asc = 0; }
+                else { asc = 0; desc = 0; }
+                if (asc >= 5 || desc >= 5) errTendencia = true;
+            }
+        }
+
+        const panel = document.getElementById('panel-alerta');
+        const titulo = document.getElementById('titulo-alerta');
+        // AQUI ESTABA EL ERROR: Cambié "desc" por "descripcionAlerta"
+        const descripcionAlerta = document.getElementById('desc-alerta'); 
+        const lista = document.getElementById('lista-causas');
+        
+        panel.style.display = 'block';
+        panel.style.backgroundColor = '#2c2c2c';
+        
+        if (errSubito) {
+            panel.style.borderColor = '#cf6679';
+            titulo.style.color = '#cf6679';
+            titulo.innerText = "🚨 CAUSA ASIGNABLE: Error Súbito";
+            descripcionAlerta.innerText = "Un punto superó la variación natural matemática (±3σ).";
+            lista.innerHTML = `
+                <li><strong>Falla técnica aguda:</strong> Cortocircuito, ruptura de herramienta o pico de voltaje.</li>
+                <li><strong>Error humano grave:</strong> Captura incorrecta del dato en el sistema.</li>`;
+        } else if (errTendencia) {
+            panel.style.borderColor = '#f2a900';
+            titulo.style.color = '#f2a900';
+            titulo.innerText = "📈 CAUSA ASIGNABLE: Tendencia (Escalera)";
+            descripcionAlerta.innerText = "6 puntos consecutivos moviéndose en la misma dirección.";
+            lista.innerHTML = `
+                <li><strong>Desgaste de máquina:</strong> Las herramientas se están desgastando gradualmente.</li>
+                <li><strong>Efecto térmico:</strong> El equipo se calienta a lo largo del turno.</li>`;
+        } else if (errRacha) {
+            panel.style.borderColor = '#f2a900';
+            titulo.style.color = '#f2a900';
+            titulo.innerText = "⚠️ CAUSA ASIGNABLE: Descalibración (Racha)";
+            descripcionAlerta.innerText = "7 puntos consecutivos agrupados por encima o por debajo del centro.";
+            lista.innerHTML = `
+                <li><strong>Descalibración:</strong> El instrumento de medición tiene un sesgo fijo.</li>
+                <li><strong>Materia prima:</strong> Ingresó un lote distinto (más denso/ligero).</li>`;
+        } else {
+            panel.style.borderColor = '#03dac6';
+            titulo.style.color = '#03dac6';
+            titulo.innerText = "✅ PROCESO SANO: Bajo Control Estadístico";
+            descripcionAlerta.innerText = "Los datos muestran aleatoriedad normal dentro de los límites.";
+            lista.innerHTML = `
+                <li>Solo actúan causas comunes y naturales del entorno.</li>
+                <li>No intervenir ni ajustar la máquina para evitar descalibrarla.</li>`;
+        }
+
+        if (typeof Chart !== 'undefined') {
+            dibujarGrafica(valores, mu, lcs, lci);
+        }
+    }
+
+    function dibujarGrafica(datos, mu, lcs, lci) {
+        const ctx = document.getElementById('graficaEnVivo').getContext('2d');
+        if (miGrafica) { miGrafica.destroy(); }
+
+        const lineaMedia = Array(8).fill(mu);
+        const lineaLCS = Array(8).fill(lcs);
+        const lineaLCI = Array(8).fill(lci);
+
+        let coloresPuntos = datos.map(val => (val > lcs || val < lci) ? '#cf6679' : '#bb86fc');
+
+        miGrafica = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n8'],
+                datasets: [
+                    { label: 'Medición Real', data: datos, borderColor: '#bb86fc', pointBackgroundColor: coloresPuntos, pointRadius: 6, borderWidth: 2, fill: false, tension: 0.1 },
+                    { label: 'LCS (Rojo)', data: lineaLCS, borderColor: '#cf6679', borderDash: [5, 5], pointRadius: 0, borderWidth: 2, fill: false },
+                    { label: 'Centro Ideal', data: lineaMedia, borderColor: '#03dac6', borderWidth: 2, pointRadius: 0, fill: false },
+                    { label: 'LCI (Rojo)', data: lineaLCI, borderColor: '#cf6679', borderDash: [5, 5], pointRadius: 0, borderWidth: 2, fill: false }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                color: '#e0e0e0',
+                scales: { 
+                    x: { ticks: { color: '#a0a0a0' }, grid: { color: '#333' } },
+                    y: { 
+                        ticks: { color: '#a0a0a0' }, grid: { color: '#333' },
+                        suggestedMin: Math.min(...datos, lci) - 0.2, 
+                        suggestedMax: Math.max(...datos, lcs) + 0.2 
+                    } 
+                },
+                plugins: { legend: { position: 'bottom', labels: { color: '#e0e0e0' } } }
+            }
+        });
+    }
+
+    setTimeout(() => cargarDatos('sano'), 200);
+
+</script>
+
+</body>
+</html>
